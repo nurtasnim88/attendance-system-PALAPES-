@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hadir — Attendance System</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f5f5f0;
+      --surface: #ffffff;
+      --border: #e2e2dc;
+      --text: #1a1a18;
+      --muted: #6b6b65;
+      --accent: #1a1a18;
+      --accent-fg: #ffffff;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --green-bg: #EAF3DE; --green-text: #3B6D11; --green-border: #97C459;
+      --red-bg: #FCEBEB;   --red-text: #A32D2D;   --red-border: #F09595;
+      --blue-bg: #E6F1FB;  --blue-text: #185FA5;  --blue-border: #85B7EB;
+      --amber-bg: #FAEEDA; --amber-text: #854F0B; --amber-border: #FAC775;
+      --purple-bg: #EEEDFE; --purple-text: #3C3489;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .screen { display: none; max-width: 480px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+    .screen.active { display: block; }
+    .logo { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 2rem; }
+    .logo span { color: var(--text); }
+    h1 { font-size: 24px; font-weight: 600; margin-bottom: 0.3rem; }
+    .subtitle { font-size: 14px; color: var(--muted); margin-bottom: 1.5rem; line-height: 1.5; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem; }
+    .field { margin-bottom: 1rem; }
+    .field:last-child { margin-bottom: 0; }
+    .field label { display: block; font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: 6px; }
+    .field input, .field select {
+      width: 100%; padding: 10px 12px;
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      background: var(--bg); color: var(--text);
+      font-size: 15px; font-family: inherit; outline: none;
+      transition: border-color 0.15s;
+    }
+    .field input:focus, .field select:focus { border-color: var(--text); }
+    .btn {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      width: 100%; padding: 12px 18px;
+      border-radius: var(--radius-sm); font-size: 15px; font-weight: 500;
+      cursor: pointer; font-family: inherit; transition: opacity 0.15s;
+      border: 1px solid var(--border); background: var(--bg); color: var(--text);
+      margin-top: 10px;
+    }
+    .btn:first-child { margin-top: 0; }
+    .btn:hover { opacity: 0.75; }
+    .btn:active { transform: scale(0.98); }
+    .btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+    .btn.success { background: var(--green-text); color: var(--green-bg); border-color: var(--green-text); }
+    .btn.danger  { background: var(--red-text);   color: var(--red-bg);   border-color: var(--red-text); }
+    .btn.sm { width: auto; padding: 6px 14px; font-size: 13px; margin-top: 0; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .alert { padding: 10px 14px; border-radius: var(--radius-sm); font-size: 13px; margin-bottom: 1rem; line-height: 1.5; }
+    .alert.error   { background: var(--red-bg);   color: var(--red-text);   border: 1px solid var(--red-border); }
+    .alert.success { background: var(--green-bg); color: var(--green-text); border: 1px solid var(--green-border); }
+    .alert.info    { background: var(--blue-bg);  color: var(--blue-text);  border: 1px solid var(--blue-border); }
+    .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+    .badge.late    { background: var(--amber-bg); color: var(--amber-text); }
+    .badge.ontime  { background: var(--green-bg); color: var(--green-text); }
+    .badge.working { background: var(--blue-bg);  color: var(--blue-text); }
+    .badge.fri { background: #E1F5EE; color: #0F6E56; }
+    .badge.sat { background: var(--purple-bg); color: var(--purple-text); }
+    .badge.sun { background: var(--amber-bg); color: var(--amber-text); }
+    .session-pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; margin: 2px 2px 0 0; background: var(--purple-bg); color: var(--purple-text); font-weight: 500; }
+    .time-big { font-size: 36px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 2px; }
+    .date-sub { font-size: 14px; color: var(--muted); margin-bottom: 1.5rem; }
+    .stat-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-bottom: 1rem; }
+    .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.75rem; text-align: center; }
+    .stat-val { font-size: 22px; font-weight: 600; }
+    .stat-lbl { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .tab-bar { display: flex; gap: 4px; margin-bottom: 1.25rem; }
+    .tab { flex: 1; padding: 8px; font-size: 13px; font-weight: 500; text-align: center; cursor: pointer; border-radius: var(--radius-sm); border: 1px solid var(--border); color: var(--muted); background: var(--surface); font-family: inherit; }
+    .tab.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+    .section { display: none; }
+    .section.active { display: block; }
+    .row { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--border); gap: 8px; }
+    .row:last-child { border-bottom: none; }
+    .row.col { flex-direction: column; gap: 6px; }
+    .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--blue-bg); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--blue-text); flex-shrink: 0; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+    .link-btn { background: none; border: none; font-size: 13px; color: var(--muted); cursor: pointer; font-family: inherit; text-decoration: underline; }
+    .filter-bar { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; }
+    .filter-bar .field { margin-bottom: 0; flex: 1; min-width: 100px; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .empty { font-size: 13px; color: var(--muted); padding: 1rem 0; text-align: center; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 0.5rem 0; }
+    @media (max-width: 400px) {
+      .stat-val { font-size: 18px; }
+      .time-big { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HOME -->
+<div id="screen-home" class="screen active">
+  <div class="logo"><span>Hadir</span> — Attendance System</div>
+  <h1>Welcome</h1>
+  <p class="subtitle">Select how you'd like to sign in.</p>
+  <div class="card">
+    <button class="btn primary" onclick="show('screen-worker')">Worker — Check In / Out</button>
+    <button class="btn" onclick="show('screen-admin-login')">Admin Login</button>
+  </div>
+  <div id="home-status"></div>
+</div>
+
+<!-- WORKER LOGIN -->
+<div id="screen-worker" class="screen">
+  <div class="top-bar">
+    <div class="logo"><span>Hadir</span></div>
+    <button class="link-btn" onclick="show('screen-home')">Back</button>
+  </div>
+  <h1>Worker Login</h1>
+  <p class="subtitle">Enter your Employee ID and the last 6 digits of your IC number.</p>
+  <div class="card">
+    <div id="worker-alert"></div>
+    <div class="field"><label>Employee ID</label><input type="text" id="worker-id" placeholder="e.g. EMP001" autocomplete="off" /></div>
+    <div class="field"><label>Last 6 digits of IC</label><input type="password" id="worker-ic" maxlength="6" placeholder="••••••" /></div>
+    <button class="btn primary" id="btn-worker-login" onclick="workerLogin()">Verify & Continue</button>
+  </div>
+</div>
+
+<!-- CHECK IN / OUT -->
+<div id="screen-checkin" class="screen">
+  <div class="top-bar">
+    <div class="logo"><span>Hadir</span></div>
+    <button class="link-btn" onclick="workerLogout()">Logout</button>
+  </div>
+  <div id="worker-greeting" style="font-size:17px;font-weight:600;margin-bottom:4px;"></div>
+  <div class="time-big" id="live-clock"></div>
+  <div class="date-sub" id="live-date"></div>
+  <div class="card" id="session-now-card" style="margin-bottom:1rem;"></div>
+  <div class="card">
+    <div id="checkin-alert"></div>
+    <div id="checkin-status"></div>
+    <button class="btn success" id="btn-checkin" onclick="doCheckIn()">Clock In Now</button>
+    <button class="btn danger"  id="btn-checkout" onclick="doCheckOut()" style="display:none;">Clock Out Now</button>
+    <hr class="divider" style="margin:10px 0;">
+    <button class="btn" onclick="show('screen-history')">My Attendance History</button>
+  </div>
+</div>
+
+<!-- HISTORY -->
+<div id="screen-history" class="screen">
+  <div class="top-bar">
+    <div class="logo"><span>Hadir</span></div>
+    <button class="link-btn" onclick="show('screen-checkin')">Back</button>
+  </div>
+  <h1>My History</h1>
+  <p class="subtitle" id="history-name"></p>
+  <div class="stat-grid" id="history-stats"></div>
+  <div class="card" id="history-list"><div class="empty">Loading...</div></div>
+</div>
+
+<!-- ADMIN LOGIN -->
+<div id="screen-admin-login" class="screen">
+  <div class="top-bar">
+    <div class="logo"><span>Hadir</span> — Admin</div>
+    <button class="link-btn" onclick="show('screen-home')">Back</button>
+  </div>
+  <h1>Admin Login</h1>
+  <div class="card">
+    <div id="admin-login-alert"></div>
+    <div class="field"><label>Username</label><input type="text" id="admin-user" placeholder="admin" /></div>
+    <div class="field"><label>Password</label><input type="password" id="admin-pass" placeholder="••••••••" /></div>
+    <button class="btn primary" id="btn-admin-login" onclick="adminLogin()">Login</button>
+  </div>
+</div>
+
+<!-- ADMIN DASHBOARD -->
+<div id="screen-admin" class="screen">
+  <div class="top-bar">
+    <div class="logo"><span>Hadir</span> — Admin</div>
+    <button class="link-btn" onclick="show('screen-home')">Logout</button>
+  </div>
+  <div class="stat-grid" id="admin-stats"></div>
+  <div class="tab-bar">
+    <button class="tab active" onclick="switchTab('tab-attendance',this)">Attendance</button>
+    <button class="tab" onclick="switchTab('tab-workers',this)">Workers</button>
+    <button class="tab" onclick="switchTab('tab-register',this)">Register</button>
+  </div>
+
+  <div id="tab-attendance" class="section active">
+    <div class="filter-bar">
+      <div class="field">
+        <label>Filter by day</label>
+        <select id="filter-day" onchange="loadAdminAttendance()">
+          <option value="">All days</option>
+          <option value="5">Friday</option>
+          <option value="6">Saturday</option>
+          <option value="0">Sunday</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Filter by date</label>
+        <input type="date" id="filter-date" onchange="loadAdminAttendance()" />
+      </div>
+      <div style="display:flex;align-items:flex-end;">
+        <button class="btn sm" onclick="clearFilter()">Clear</button>
+      </div>
+    </div>
+    <div class="card" id="attendance-list"><div class="empty">Loading...</div></div>
+  </div>
+
+  <div id="tab-workers" class="section">
+    <div class="card" id="workers-list"><div class="empty">Loading...</div></div>
+  </div>
+
+  <div id="tab-register" class="section">
+    <h1>Register Worker</h1>
+    <p class="subtitle">Add a new worker. The IC digits are used for login verification.</p>
+    <div class="card">
+      <div id="reg-alert"></div>
+      <div class="field"><label>Full Name</label><input type="text" id="reg-name" placeholder="e.g. Ahmad bin Ali" /></div>
+      <div class="field"><label>Employee ID</label><input type="text" id="reg-empid" placeholder="e.g. EMP004" /></div>
+      <div class="field"><label>Department / Unit</label><input type="text" id="reg-dept" placeholder="e.g. Bravo" /></div>
+      <div class="field"><label>Last 6 digits of IC</label><input type="text" id="reg-ic" maxlength="6" placeholder="e.g. 123456" inputmode="numeric" /></div>
+      <button class="btn primary" id="btn-register" onclick="registerWorker()">Register Worker</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONFIG — Replace with your Supabase project details
+// ============================================================
+const SUPABASE_URL = 'https://nnlvkhkvnhwlfigfprky.supabase.co/rest/v1/';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ubHZraGt2bmh3bGZpZ2Zwcmt5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzU1NzksImV4cCI6MjA5MjgxMTU3OX0.1MXRgjbfNcbeh6BJ5Ia7qvXcjYa4CS5ICwQxLrlfsrI';
+// ============================================================
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── Session definitions ──────────────────────────────────────
+const SESSIONS = [
+  { name: 'PT Pagi',      start: 5*60,      end:  7*60+59,  hours: 2 },
+  { name: 'Kelas Pagi',   start: 8*60,      end: 13*60+59,  hours: 4 },
+  { name: 'Kelas Petang', start: 14*60,     end: 16*60+29,  hours: 2 },
+  { name: 'Sukan Petang', start: 16*60+30,  end: 18*60+29,  hours: 1 },
+  { name: 'Makan Malam',  start: 18*60+30,  end: 20*60+44,  hours: 1 },
+  { name: 'Kelas Malam',  start: 20*60+45,  end: 22*60+29,  hours: 1 },
+  { name: 'Rollcall',     start: 22*60+30,  end: 23*60+59,  hours: 1 },
+];
+
+// Day max hours (0=Sun, 5=Fri, 6=Sat)
+const DAY_MAX = { 5: 6, 6: 12, 0: 6 };
+
+function sessionAtMinute(min) {
+  return SESSIONS.find(s => min >= s.start && min <= s.end) || null;
+}
+
+// Calculate credited hours using 1-hour grace rule
+// Worker gets a session credit only if they clocked out >= (session.start + 60 min)
+function calcHours(checkInMs, checkOutMs) {
+  const inDate  = new Date(checkInMs);
+  const inMin   = inDate.getHours() * 60 + inDate.getMinutes();
+  const outMin  = checkOutMs ? (() => { const d = new Date(checkOutMs); return d.getHours()*60+d.getMinutes(); })() : null;
+
+  const inSession = sessionAtMinute(inMin);
+  if (!inSession) return { hours: 0, sessions: [] };
+
+  let earned = [];
+  let started = false;
+  for (const s of SESSIONS) {
+    if (s.name === inSession.name) started = true;
+    if (!started) continue;
+    if (outMin === null) { earned.push(s); break; } // not clocked out yet — only show entry session
+    const graceMin = s.start + 60; // must clock out AFTER this to earn session
+    if (outMin >= graceMin) {
+      earned.push(s);
+    } else {
+      break; // didn't stay long enough in this session
+    }
+  }
+
+  const total = earned.reduce((sum, s) => sum + s.hours, 0);
+  const dow   = inDate.getDay();
+  const max   = DAY_MAX[dow] !== undefined ? DAY_MAX[dow] : 12;
+  return { hours: Math.min(total, max), sessions: earned };
+}
+
+// ── Helpers ──────────────────────────────────────────────────
+let currentWorker = null;
+let clockInterval = null;
+
+function getMYT() {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kuala_Lumpur' }));
+}
+function fmtTime(d)      { return d.toLocaleTimeString('en-MY', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true }); }
+function fmtTimeShort(d) { return d.toLocaleTimeString('en-MY', { hour:'2-digit', minute:'2-digit', hour12:true }); }
+function fmtDate(d)      { return d.toLocaleDateString('en-MY', { weekday:'long', year:'numeric', month:'long', day:'numeric' }); }
+function fmtDateShort(d) { return d.toLocaleDateString('en-MY', { year:'numeric', month:'short', day:'numeric' }); }
+function todayMYT()      { const d = getMYT(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function msToMYTDate(ms) { const d = new Date(new Date(ms).toLocaleString('en-US',{timeZone:'Asia/Kuala_Lumpur'})); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function getDow(ms)      { return new Date(new Date(ms).toLocaleString('en-US',{timeZone:'Asia/Kuala_Lumpur'})).getDay(); }
+function initials(name)  { return name.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase(); }
+
+function dowBadge(dow) {
+  const map = { 5:['fri','Friday'], 6:['sat','Saturday'], 0:['sun','Sunday'] };
+  const [cls, label] = map[dow] || ['','—'];
+  return cls ? `<span class="badge ${cls}">${label}</span>` : '';
+}
+
+function alert_(id, msg, type) {
+  const el = document.getElementById(id);
+  el.innerHTML = msg ? `<div class="alert ${type}">${msg}</div>` : '';
+}
+
+function setLoading(btnId, loading) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.disabled = loading;
+  if (loading) btn.dataset.orig = btn.innerHTML;
+  btn.innerHTML = loading ? '<span class="spinner"></span>' : btn.dataset.orig;
+}
+
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id === 'screen-admin')   loadAdminDashboard();
+  if (id === 'screen-history') loadHistory();
+}
+
+// ── Clock tick ───────────────────────────────────────────────
+function tickClock() {
+  const now = getMYT();
+  const el1 = document.getElementById('live-clock');
+  const el2 = document.getElementById('live-date');
+  if (el1) el1.textContent = fmtTime(now);
+  if (el2) el2.textContent = fmtDate(now);
+}
+tickClock();
+setInterval(tickClock, 1000);
+
+// ── Session now card ─────────────────────────────────────────
+function renderSessionNow() {
+  const now = getMYT();
+  const min = now.getHours() * 60 + now.getMinutes();
+  const s   = sessionAtMinute(min);
+  const card = document.getElementById('session-now-card');
+  if (!s) {
+    card.innerHTML = '<p style="font-size:13px;color:var(--muted);">No active session at the moment.</p>';
+    return;
+  }
+  card.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:3px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;">Current session</div>
+        <div style="font-size:17px;font-weight:600;">${s.name}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:3px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;">Value</div>
+        <div style="font-size:17px;font-weight:600;">${s.hours} hr${s.hours>1?'s':''}</div>
+      </div>
+    </div>`;
+}
+setInterval(renderSessionNow, 30000);
+
+// ── Worker login ─────────────────────────────────────────────
+async function workerLogin() {
+  const empId = document.getElementById('worker-id').value.trim().toUpperCase();
+  const ic    = document.getElementById('worker-ic').value.trim();
+  alert_('worker-alert', '', '');
+  if (!empId || !ic) { alert_('worker-alert', 'Please enter your Employee ID and IC digits.', 'error'); return; }
+  setLoading('btn-worker-login', true);
+  const { data, error } = await sb.from('workers').select('*').eq('emp_id', empId).eq('ic_last6', ic).single();
+  setLoading('btn-worker-login', false);
+  if (error || !data) { alert_('worker-alert', 'Invalid Employee ID or IC number. Please try again.', 'error'); return; }
+  currentWorker = data;
+  show('screen-checkin');
+  renderSessionNow();
+  await renderCheckin();
+}
+
+function workerLogout() {
+  currentWorker = null;
+  show('screen-home');
+}
+
+// ── Render check-in screen ───────────────────────────────────
+async function renderCheckin() {
+  document.getElementById('worker-greeting').textContent = `Good day, ${currentWorker.full_name}`;
+  const today  = todayMYT();
+  const btnIn  = document.getElementById('btn-checkin');
+  const btnOut = document.getElementById('btn-checkout');
+  const status = document.getElementById('checkin-status');
+  alert_('checkin-alert', '', '');
+
+  const { data: rec } = await sb.from('attendance').select('*').eq('emp_id', currentWorker.emp_id).eq('date', today).maybeSingle();
+
+  if (!rec) {
+    status.innerHTML = '<p style="font-size:14px;color:var(--muted);margin-bottom:1rem;">You have not clocked in today.</p>';
+    btnIn.style.display  = 'flex';
+    btnOut.style.display = 'none';
+  } else if (rec.check_in && !rec.check_out) {
+    const inDate = new Date(rec.check_in);
+    status.innerHTML = `
+      <div style="margin-bottom:1rem;">
+        <div style="font-size:13px;color:var(--muted);">Clocked in at</div>
+        <div style="font-size:20px;font-weight:600;">${fmtTimeShort(inDate)}</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:4px;">Session: <strong>${rec.session_in}</strong></div>
+      </div>`;
+    btnIn.style.display  = 'none';
+    btnOut.style.display = 'flex';
+  } else if (rec.check_in && rec.check_out) {
+    const { hours, sessions } = calcHours(new Date(rec.check_in).getTime(), new Date(rec.check_out).getTime());
+    const tags = sessions.map(s => `<span class="session-pill">${s.name} (${s.hours}h)</span>`).join('');
+    status.innerHTML = `
+      <div class="alert success">
+        <div style="font-weight:600;margin-bottom:6px;">Complete — ${hours} hour${hours!==1?'s':''} credited</div>
+        <div>${tags}</div>
+      </div>`;
+    btnIn.style.display  = 'none';
+    btnOut.style.display = 'none';
+  }
+}
+
+// ── Clock in ─────────────────────────────────────────────────
+async function doCheckIn() {
+  const now    = getMYT();
+  const min    = now.getHours() * 60 + now.getMinutes();
+  const s      = sessionAtMinute(min);
+  if (!s) { alert_('checkin-alert', 'No active session right now. Please clock in during a valid session time.', 'error'); return; }
+  const today  = todayMYT();
+
+  // Check duplicate
+  const { data: existing } = await sb.from('attendance').select('id').eq('emp_id', currentWorker.emp_id).eq('date', today).maybeSingle();
+  if (existing) { alert_('checkin-alert', 'You have already clocked in today.', 'error'); return; }
+
+  setLoading('btn-checkin', true);
+  const { error } = await sb.from('attendance').insert({
+    emp_id:      currentWorker.emp_id,
+    full_name:   currentWorker.full_name,
+    department:  currentWorker.department,
+    check_in:    now.toISOString(),
+    date:        today,
+    session_in:  s.name,
+    is_late:     false,
+    working_hours: 0,
+  });
+  setLoading('btn-checkin', false);
+  if (error) { alert_('checkin-alert', 'Something went wrong. Please try again.', 'error'); return; }
+  await renderCheckin();
+}
+
+// ── Clock out ────────────────────────────────────────────────
+async function doCheckOut() {
+  const now   = getMYT();
+  const today = todayMYT();
+  const { data: rec } = await sb.from('attendance').select('*').eq('emp_id', currentWorker.emp_id).eq('date', today).maybeSingle();
+  if (!rec) return;
+
+  const { hours, sessions } = calcHours(new Date(rec.check_in).getTime(), now.getTime());
+  setLoading('btn-checkout', true);
+  await sb.from('attendance').update({
+    check_out:     now.toISOString(),
+    working_hours: hours,
+    sessions_list: sessions.map(s => s.name).join(', '),
+  }).eq('id', rec.id);
+  setLoading('btn-checkout', false);
+  await renderCheckin();
+}
+
+// ── History ──────────────────────────────────────────────────
+async function loadHistory() {
+  document.getElementById('history-name').textContent = `${currentWorker.full_name} · ${currentWorker.emp_id} · ${currentWorker.department}`;
+  const { data: recs } = await sb.from('attendance').select('*').eq('emp_id', currentWorker.emp_id).order('date', { ascending: false });
+  const list = document.getElementById('history-list');
+  if (!recs || !recs.length) { list.innerHTML = '<div class="empty">No attendance records yet.</div>'; renderHistoryStats([]); return; }
+  renderHistoryStats(recs);
+  list.innerHTML = recs.map(r => {
+    const inDate  = new Date(r.check_in);
+    const dow     = getDow(inDate.getTime());
+    const tags    = r.sessions_list ? r.sessions_list.split(', ').map(n => `<span class="session-pill">${n}</span>`).join('') : '';
+    return `<div class="row col">
+      <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+        <div style="font-weight:600;">${fmtDateShort(inDate)} ${dowBadge(dow)}</div>
+        <div style="font-weight:600;">${r.check_out ? r.working_hours+' hrs' : '<span class="badge working">Working</span>'}</div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);">In: ${fmtTimeShort(inDate)} (${r.session_in || '—'})${r.check_out ? ' · Out: '+fmtTimeShort(new Date(r.check_out)) : ''}</div>
+      ${tags ? `<div>${tags}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function renderHistoryStats(recs) {
+  const total = recs.length;
+  const hrs   = recs.reduce((s,r) => s + (parseFloat(r.working_hours)||0), 0).toFixed(1);
+  const done  = recs.filter(r => r.check_out).length;
+  document.getElementById('history-stats').innerHTML = `
+    <div class="stat"><div class="stat-val">${total}</div><div class="stat-lbl">Days present</div></div>
+    <div class="stat"><div class="stat-val">${hrs}</div><div class="stat-lbl">Total hours</div></div>
+    <div class="stat"><div class="stat-val">${done}</div><div class="stat-lbl">Fully recorded</div></div>`;
+}
+
+// ── Admin login ──────────────────────────────────────────────
+async function adminLogin() {
+  const user = document.getElementById('admin-user').value.trim();
+  const pass = document.getElementById('admin-pass').value.trim();
+  alert_('admin-login-alert', '', '');
+  setLoading('btn-admin-login', true);
+  const { data } = await sb.from('admins').select('*').eq('username', user).eq('password', pass).maybeSingle();
+  setLoading('btn-admin-login', false);
+  if (!data) { alert_('admin-login-alert', 'Invalid credentials.', 'error'); return; }
+  show('screen-admin');
+}
+
+// ── Admin dashboard ──────────────────────────────────────────
+async function loadAdminDashboard() {
+  await Promise.all([loadAdminStats(), loadAdminAttendance(), loadWorkers()]);
+}
+
+async function loadAdminStats() {
+  const today = todayMYT();
+  const { data: todayRecs } = await sb.from('attendance').select('working_hours').eq('date', today);
+  const { data: workers }   = await sb.from('workers').select('emp_id');
+  const present = todayRecs ? todayRecs.length : 0;
+  const total   = workers   ? workers.length   : 0;
+  const hrs     = todayRecs ? todayRecs.reduce((s,r)=>s+(parseFloat(r.working_hours)||0),0).toFixed(1) : 0;
+  document.getElementById('admin-stats').innerHTML = `
+    <div class="stat"><div class="stat-val">${present}/${total}</div><div class="stat-lbl">Present today</div></div>
+    <div class="stat"><div class="stat-val">${total-present}</div><div class="stat-lbl">Absent today</div></div>
+    <div class="stat"><div class="stat-val">${hrs}</div><div class="stat-lbl">Hours logged</div></div>`;
+}
+
+async function loadAdminAttendance() {
+  const filterDate = document.getElementById('filter-date').value;
+  const filterDay  = document.getElementById('filter-day').value;
+  let query = sb.from('attendance').select('*').order('check_in', { ascending: false });
+  if (filterDate) query = query.eq('date', filterDate);
+  const { data: recs } = await query;
+  const list = document.getElementById('attendance-list');
+
+  let filtered = recs || [];
+  if (filterDay !== '') filtered = filtered.filter(r => getDow(new Date(r.check_in).getTime()) === parseInt(filterDay));
+
+  if (!filtered.length) { list.innerHTML = '<div class="empty">No records found for this filter.</div>'; return; }
+  list.innerHTML = filtered.map(r => {
+    const inDate = new Date(r.check_in);
+    const dow    = getDow(inDate.getTime());
+    const tags   = r.sessions_list ? r.sessions_list.split(', ').map(n=>`<span class="session-pill">${n}</span>`).join('') : '';
+    return `<div class="row col">
+      <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="avatar">${initials(r.full_name)}</div>
+          <div><div style="font-weight:600;font-size:14px;">${r.full_name}</div>
+          <div style="font-size:12px;color:var(--muted);">${r.emp_id} · ${r.department}</div></div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-weight:600;">${r.check_out ? r.working_hours+' hrs' : '<span class="badge working">Working</span>'}</div>
+          ${dowBadge(dow)}
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);padding-left:42px;">
+        ${fmtDateShort(inDate)} · In: ${fmtTimeShort(inDate)} (${r.session_in||'—'})${r.check_out?' · Out: '+fmtTimeShort(new Date(r.check_out)):''}
+      </div>
+      ${tags ? `<div style="padding-left:42px;">${tags}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function loadWorkers() {
+  const { data: workers } = await sb.from('workers').select('*').order('created_at', { ascending: true });
+  const list = document.getElementById('workers-list');
+  if (!workers || !workers.length) { list.innerHTML = '<div class="empty">No workers registered yet.</div>'; return; }
+  list.innerHTML = workers.map(w => `
+    <div class="row">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="avatar">${initials(w.full_name)}</div>
+        <div><div style="font-weight:600;">${w.full_name}</div>
+        <div style="font-size:12px;color:var(--muted);">${w.emp_id} · ${w.department}</div></div>
+      </div>
+      <button class="btn sm danger" onclick="removeWorker('${w.emp_id}','${w.full_name}')">Remove</button>
+    </div>`).join('');
+}
+
+async function removeWorker(empId, name) {
+  if (!confirm(`Remove ${name}? This will also delete all their attendance records.`)) return;
+  await sb.from('attendance').delete().eq('emp_id', empId);
+  await sb.from('workers').delete().eq('emp_id', empId);
+  await loadWorkers();
+  await loadAdminStats();
+}
+
+async function registerWorker() {
+  const name  = document.getElementById('reg-name').value.trim();
+  const empId = document.getElementById('reg-empid').value.trim().toUpperCase();
+  const dept  = document.getElementById('reg-dept').value.trim();
+  const ic    = document.getElementById('reg-ic').value.trim();
+  alert_('reg-alert', '', '');
+  if (!name || !empId || !dept || !/^\d{6}$/.test(ic)) {
+    alert_('reg-alert', 'Please fill in all fields. IC must be exactly 6 digits.', 'error'); return;
+  }
+  setLoading('btn-register', true);
+  const { error } = await sb.from('workers').insert({ emp_id: empId, full_name: name, department: dept, ic_last6: ic });
+  setLoading('btn-register', false);
+  if (error) {
+    if (error.code === '23505') { alert_('reg-alert', 'Employee ID already exists. Please use a different ID.', 'error'); }
+    else { alert_('reg-alert', 'Something went wrong. Please try again.', 'error'); }
+    return;
+  }
+  ['reg-name','reg-empid','reg-dept','reg-ic'].forEach(id => document.getElementById(id).value = '');
+  alert_('reg-alert', `${name} has been registered successfully!`, 'success');
+  await loadWorkers();
+}
+
+function clearFilter() {
+  document.getElementById('filter-date').value = '';
+  document.getElementById('filter-day').value  = '';
+  loadAdminAttendance();
+}
+
+function switchTab(tabId, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  btn.classList.add('active');
+}
+
+// Check Supabase connection on load
+(async () => {
+  if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+    document.getElementById('home-status').innerHTML = '<div class="alert info">Demo mode — Supabase not connected yet. Follow the setup guide to connect your database.</div>';
+  }
+})();
+</script>
+</body>
+</html>
