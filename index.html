@@ -233,7 +233,7 @@
 // ============================================================
 // CONFIG — Replace with your Supabase project details
 // ============================================================
-const SUPABASE_URL = 'https://nnlvkhkvnhwlfigfprky.supabase.co/rest/v1/';
+const SUPABASE_URL = 'https://nnlvkhkvnhwlfigfprky.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ubHZraGt2bmh3bGZpZ2Zwcmt5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzU1NzksImV4cCI6MjA5MjgxMTU3OX0.1MXRgjbfNcbeh6BJ5Ia7qvXcjYa4CS5ICwQxLrlfsrI';
 // ============================================================
 
@@ -627,7 +627,7 @@ function switchTab(tabId, btn) {
 
 // Check Supabase connection on load
 (async () => {
-  if (SUPABASE_URL === 'https://nnlvkhkvnhwlfigfprky.supabase.co/rest/v1/') {
+  if (SUPABASE_URL === 'https://nnlvkhkvnhwlfigfprky.supabase.co') {
     document.getElementById('home-status').innerHTML = '<div class="alert info">Demo mode — Supabase not connected yet. Follow the setup guide to connect your database.</div>';
   }
 })();
