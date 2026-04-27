@@ -627,7 +627,7 @@ function switchTab(tabId, btn) {
 
 // Check Supabase connection on load
 (async () => {
-  if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+  if (SUPABASE_URL === 'https://nnlvkhkvnhwlfigfprky.supabase.co/rest/v1/') {
     document.getElementById('home-status').innerHTML = '<div class="alert info">Demo mode — Supabase not connected yet. Follow the setup guide to connect your database.</div>';
   }
 })();
